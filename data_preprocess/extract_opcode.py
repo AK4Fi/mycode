@@ -2,52 +2,76 @@ import os
 import re
 import csv
 import pandas as pd
+import concurrent.futures
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+
+# 将正则表达式和排除集合提取为全局变量，避免在每个函数调用中重复编译，提升多进程效率
+OPCODE_PATTERN = re.compile(r'\s([a-fA-F0-9]{2}\s)+\s*([a-z]{2,})')
+EXCLUDE_OPS = {"align", "db", "dd", "dw", "byte", "word", "dword", "extrn"}
 
 def extract_opcode_sequence(asm_filepath):
     """从 asm 文件提取纯净的操作码序列"""
     opcode_seq = []
-    # 匹配十六进制机器码后的有效操作码（至少2个字母）
-    pattern = re.compile(r'\s([a-fA-F0-9]{2}\s)+\s*([a-z]{2,})')
-    # 过滤伪指令和无意义指令
-    exclude_ops = {"align", "db", "dd", "dw", "byte", "word", "dword", "extrn"}
-
+    
     try:
         with open(asm_filepath, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 if line.startswith(".text"):
-                    match = re.search(pattern, line)
+                    match = re.search(OPCODE_PATTERN, line)
                     if match:
                         opc = match.group(2)
-                        if opc not in exclude_ops:
+                        if opc not in EXCLUDE_OPS:
                             opcode_seq.append(opc)
     except Exception as e:
         print(f"Error reading {asm_filepath}: {e}")
     return " ".join(opcode_seq)
 
+def process_single_file(args):
+    """供多进程调用的单文件处理 worker"""
+    file_id, label, asm_dir = args
+    asm_path = os.path.join(asm_dir, f"{file_id}.asm")
+    
+    if not os.path.exists(asm_path):
+        return None
+        
+    opcodes = extract_opcode_sequence(asm_path)
+    if len(opcodes.strip()) > 0:
+        return {"id": file_id, "opcodes": opcodes, "label": label}
+    return None
+
 def main():
-    # TODO: 替换为你的 Microsoft BIG 2015 解压目录和 trainLabels.csv 路径
-    asm_dir = "/root/autodl-tmp/kaggle2015-sample/subtrain" 
-    labels_csv = "/root/autodl-tmp/kaggle2015-sample/subtrain/subtrainLabels.csv"
-    output_dir = "../data"
+    # subtrain_dir = "/root/autodl-tmp/kaggle2015-sample"
+    # asm_dir = subtrain_dir + "/subtrain" 
+    # labels_csv = "/root/autodl-tmp/kaggle2015-sample/subtrain/subtrainLabels.csv"
+    # output_dir = "../data"
+    
+    # full_data
+    asm_dir = "/root/autodl-tmp/Kaggle2015/train" 
+    labels_csv = "/root/autodl-tmp/Kaggle2015/trainLabels.csv"
+    output_dir = "/root/autodl-tmp/Kaggle2015/full_data"
     os.makedirs(output_dir, exist_ok=True)
 
     df_labels = pd.read_csv(labels_csv)
     dataset_records = []
 
-    print("开始提取 Opcode 序列...")
-    for _, row in tqdm(df_labels.iterrows(), total=len(df_labels)):
-        file_id = row['Id']
-        label = row['Class'] - 1  # PyTorch 标签需从 0 开始 (0-8)
+    # 准备多进程任务参数
+    tasks = [(row['Id'], row['Class'] - 1, asm_dir) for _, row in df_labels.iterrows()]
+    
+    # 获取当前机器的 CPU 核心数，你也可以手动指定 max_workers=8 等
+    cpu_cores = 32
+    print(f"开始提取 Opcode 序列，启动 {cpu_cores} 个 CPU 核心...")
+
+    # 使用多进程池
+    with concurrent.futures.ProcessPoolExecutor(max_workers=cpu_cores) as executor:
+        # 提交所有任务
+        futures = {executor.submit(process_single_file, task): task for task in tasks}
         
-        asm_path = os.path.join(asm_dir, f"{file_id}.asm")
-        if not os.path.exists(asm_path):
-            continue
-            
-        opcodes = extract_opcode_sequence(asm_path)
-        if len(opcodes.strip()) > 0:
-            dataset_records.append({"id": file_id, "opcodes": opcodes, "label": label})
+        # 使用 tqdm 配合 as_completed 监控进度
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
+            result = future.result()
+            if result is not None:
+                dataset_records.append(result)
 
     # 保存为全量数据，并划分为 Train/Val/Test (8:1:1)
     df_all = pd.DataFrame(dataset_records)
@@ -57,7 +81,7 @@ def main():
     train_df.to_csv(os.path.join(output_dir, "train.csv"), index=False)
     val_df.to_csv(os.path.join(output_dir, "val.csv"), index=False)
     test_df.to_csv(os.path.join(output_dir, "test.csv"), index=False)
-    print("数据提取完成，已保存至 data/ 目录。")
+    print(f"数据提取完成，已保存至 {output_dir} 目录。")
 
 if __name__ == "__main__":
     main()

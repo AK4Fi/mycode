@@ -20,7 +20,10 @@ class MalwareMultimodalDataset(Dataset):
         )
         
         if self.truncate_mode == 'entropy':
-            with open('./data/opcode_entropy.json', 'r') as f:
+            # subtrain
+            # with open('./data/opcode_entropy.json', 'r') as f:
+            # full_data
+            with open('/root/autodl-tmp/Kaggle2015/full_data/opcode_entropy.json', 'r') as f:
                 self.entropy_dict = json.load(f)
 
     def __len__(self):

@@ -33,9 +33,15 @@ def run_experiment(args):
     print(f"策略: {args.truncate} | 损失: {args.loss_fn}")
     print(f"{'='*60}\n")
 
-    train_dataset = MalwareMultimodalDataset('./data/train.csv', './data/graphs/', truncate_mode=args.truncate)
-    val_dataset = MalwareMultimodalDataset('./data/val.csv', './data/graphs/', truncate_mode=args.truncate)
-    test_dataset = MalwareMultimodalDataset('./data/test.csv', './data/graphs/', truncate_mode=args.truncate)
+    # subtrain
+    # train_dataset = MalwareMultimodalDataset('./data/train.csv', './data/graphs/', truncate_mode=args.truncate)
+    # val_dataset = MalwareMultimodalDataset('./data/val.csv', './data/graphs/', truncate_mode=args.truncate)
+    # test_dataset = MalwareMultimodalDataset('./data/test.csv', './data/graphs/', truncate_mode=args.truncate)
+
+    # full_data
+    train_dataset = MalwareMultimodalDataset('/root/autodl-tmp/Kaggle2015/full_data/train.csv', '/root/autodl-tmp/Kaggle2015/full_data/graphs/', truncate_mode=args.truncate)
+    val_dataset = MalwareMultimodalDataset('/root/autodl-tmp/Kaggle2015/full_data/val.csv', '/root/autodl-tmp/Kaggle2015/full_data/graphs/', truncate_mode=args.truncate)
+    test_dataset = MalwareMultimodalDataset('/root/autodl-tmp/Kaggle2015/full_data/test.csv', '/root/autodl-tmp/Kaggle2015/full_data/graphs/', truncate_mode=args.truncate)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
@@ -89,6 +95,7 @@ def run_experiment(args):
 
         if val_f1 > best_f1:
             best_f1 = val_f1
+            print("")
             torch.save(model.state_dict(), f"weights/exp_{args.exp_name}.pth")
             
     print(f"\n{'='*40}\n在test上测试...\n{'='*40}")
@@ -115,8 +122,8 @@ if __name__ == '__main__':
     parser.add_argument('--attn_dir', type=str, default='cfg2seq', choices=['cfg2seq', 'seq2cfg'])
     parser.add_argument('--truncate', type=str, default='entropy', choices=['head_only', 'head_tail', 'entropy', 'cfg_guided'])
     parser.add_argument('--loss_fn', type=str, default='focal', choices=['focal', 'ce'])
-    parser.add_argument('--batch_size', type=int, default=8)
-    parser.add_argument('--epochs', type=int, default=5)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--epochs', type=int, default=20)
     args = parser.parse_args()
     
     os.makedirs('weights', exist_ok=True)
