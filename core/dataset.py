@@ -1,41 +1,76 @@
+# 文件位置: core/dataset.py
 import os
+import json
 import torch
 import pandas as pd
 from torch_geometric.data import Dataset
 from transformers import RobertaTokenizer
 
 class MalwareMultimodalDataset(Dataset):
-    """同时加载 CFG(图) 和 Opcode(文本) 的异构数据集"""
-    def __init__(self, csv_file, graph_dir, max_len=512):
+    def __init__(self, csv_file, graph_dir, max_len=512, truncate_mode='head_tail'):
         super().__init__()
         self.data_df = pd.read_csv(csv_file)
         self.graph_dir = graph_dir
         self.max_len = max_len
-        self.tokenizer = RobertaTokenizer.from_pretrained('./pretrained_models/codebert-base')
+        self.truncate_mode = truncate_mode
+        
+        self.tokenizer = RobertaTokenizer.from_pretrained(
+            './pretrained_models/codebert-base', 
+            local_files_only=True
+        )
+        
+        if self.truncate_mode == 'entropy':
+            with open('./data/opcode_entropy.json', 'r') as f:
+                self.entropy_dict = json.load(f)
 
     def __len__(self):
         return len(self.data_df)
+
+    def process_sequence(self, row):
+        max_ops = self.max_len - 2 
+        
+        # 1. CFG 引导
+        if self.truncate_mode == 'cfg_guided' and 'cfg_guided_opcodes' in row:
+            opcodes = str(row['cfg_guided_opcodes']).split()
+            return " ".join(opcodes[:max_ops])
+            
+        opcodes = str(row['opcodes']).split()
+        if len(opcodes) <= max_ops:
+            return " ".join(opcodes)
+            
+        # 2. 头部截断
+        if self.truncate_mode == 'head_only':
+            return " ".join(opcodes[:max_ops])
+            
+        # 3. 头尾截断
+        elif self.truncate_mode == 'head_tail':
+            half = max_ops // 2
+            return " ".join(opcodes[:half] + opcodes[-half:])
+            
+        # 4. 信息熵精简
+        elif self.truncate_mode == 'entropy':
+            scored_ops = [(i, op, self.entropy_dict.get(op, 5.0)) for i, op in enumerate(opcodes)]
+            scored_ops.sort(key=lambda x: x[2], reverse=True)
+            kept_ops = sorted(scored_ops[:max_ops], key=lambda x: x[0])
+            return " ".join([x[1] for x in kept_ops])
+
+        return str(row['opcodes'])
 
     def __getitem__(self, idx):
         row = self.data_df.iloc[idx]
         sample_id = row['id']
         label = row['label']
-        opcode_text = str(row['opcodes'])
-
-        # 1. 文本 Tokenize
+        
+        processed_text = self.process_sequence(row)
         tokens = self.tokenizer(
-            opcode_text,
-            padding='max_length',
-            max_length=self.max_len,
-            truncation=True,
-            return_tensors="pt"
+            processed_text, padding='max_length', max_length=self.max_len,
+            truncation=True, return_tensors="pt"
         )
         
-        # 2. 读取之前保存的 PyG 图数据
         graph_path = os.path.join(self.graph_dir, f"{sample_id}.pt")
         graph_data = torch.load(graph_path, weights_only=False)
-
-        # 3. 保留张量的二维形状 [1, 512]，PyG Dataloader 拼接后会自动变成 [Batch, 512]
+        
+        # 将文本数据注入 PyG 图对象
         graph_data.input_ids = tokens['input_ids']
         graph_data.attention_mask = tokens['attention_mask']
         graph_data.y = torch.tensor([label], dtype=torch.long)
