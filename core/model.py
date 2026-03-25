@@ -28,7 +28,8 @@ class MultiModalMalwareClassifier(nn.Module):
             clf_dim = bert_hidden * 3 if self.fusion == 'dense_concat' else bert_hidden * 2
         else:
             clf_dim = bert_hidden
-
+        # todo 门控
+        # self.gate = nn.Sequential(nn.Linear(bert_hidden * 2, 1), nn.Sigmoid())
         self.classifier = nn.Sequential(
             nn.Linear(clf_dim, 256), nn.BatchNorm1d(256),
             nn.ReLU(), nn.Dropout(0.4), nn.Linear(256, num_classes)
@@ -36,11 +37,7 @@ class MultiModalMalwareClassifier(nn.Module):
 
     def forward(self, data):
         final_feature = None
-        
-        # ==========================================
-        # 【终极维度修复】: 防止 PyG 把 Batch 拼接成 1D
-        # 使用 .view(-1, 512) 自动推断当前 Batch Size
-        # ==========================================
+
         b_input_ids = data.input_ids.view(-1, 512)
         b_mask = data.attention_mask.view(-1, 512)
 
@@ -79,6 +76,14 @@ class MultiModalMalwareClassifier(nn.Module):
 
                 if self.fusion == 'cross_attn':
                     final_feature = torch.cat([cls_embed, fused_embed], dim=-1)
+                    # # 计算门控权重 (0~1之间)
+                    #TODO 门控机制
+                    # gate_weight = self.gate(torch.cat([cls_embed, fused_embed], dim=-1))
+                    # # 动态融合：模型自动决定 fused_embed (含图信息) 和 cls_embed (纯文本) 谁更重要
+                    # adaptive_feature = gate_weight * fused_embed + (1 - gate_weight) * cls_embed
+                    # # --------------------------------
+                    # final_feature = torch.cat([cls_embed, adaptive_feature], dim=-1) 
+
                 elif self.fusion == 'dense_concat':
                     final_feature = torch.cat([cls_embed, cfg_embed, fused_embed], dim=-1)
 

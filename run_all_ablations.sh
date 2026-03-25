@@ -4,7 +4,6 @@
 # 实验一：序列特征降维消融
 # ==================================
 python train_ablation.py --exp_name trunc_head --truncate head_only
-python train_ablation.py --exp_name trunc_head_tail --truncate head_tail
 python train_ablation.py --exp_name trunc_entropy --truncate entropy
 python train_ablation.py --exp_name trunc_cfg_guided --truncate cfg_guided
 
