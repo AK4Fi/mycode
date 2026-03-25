@@ -1,0 +1,53 @@
+pretrained_models/bert-base-uncased/*
+pretrained_models/codebert-base/*
+!pretrained_models/bert-base-uncased/.gitkeep
+!pretrained_models/codebert-base/.gitkeep
+
+data/graphs/*
+!data/graphs/.gitkeep
+weights/*
+!weights/.gitkeep
+*.log
+*.pth
+*.csv
+*.json
+
+*.ipynb
+
+.ipynb_checkpoints/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+
+# Distribution / packaging
+bin/
+build/
+develop-eggs/
+dist/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+
+# Environment variables (Sensitive data!)
+.env
