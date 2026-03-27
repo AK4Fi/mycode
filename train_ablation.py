@@ -122,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--attn_dir', type=str, default='cfg2seq', choices=['cfg2seq', 'seq2cfg'])
     parser.add_argument('--truncate', type=str, default='entropy', choices=['head_only', 'head_tail', 'entropy', 'cfg_guided'])
     parser.add_argument('--loss_fn', type=str, default='focal', choices=['focal', 'ce'])
-    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--epochs', type=int, default=20)
     args = parser.parse_args()
     

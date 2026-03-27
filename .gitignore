@@ -7,10 +7,10 @@ data/graphs/*
 !data/graphs/.gitkeep
 weights/*
 !weights/.gitkeep
-*.log
+# *.log
 *.pth
 *.csv
-*.json
+# *.json
 
 *.ipynb
 
